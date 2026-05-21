@@ -1,0 +1,27 @@
+name: DynaMo Weather Scheduler
+
+on:
+  schedule:
+    - cron: '*/12 * * * *'   # every 12 minutes
+  workflow_dispatch:          # allows manual trigger from GitHub UI
+
+jobs:
+  run-dynamo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install supabase python-dotenv requests
+
+      - name: Run DynaMo cycle
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python main.py
