@@ -8,6 +8,7 @@ import pandas as pd
 from datetime import datetime, timezone, date
 from dotenv import load_dotenv
 from supabase import create_client
+from streamlit_autorefresh import st_autorefresh
 
 # ============================================================
 # SETUP
@@ -32,7 +33,14 @@ def load_data():
     line_items = supabase.table("line_items").select("*").execute().data
     creatives = supabase.table("creatives").select("*").execute().data
     cities_data = supabase.table("cities").select("*").execute().data
-    weather = supabase.table("weather_readings").select("*").order("fetched_at", desc=True).execute().data
+    weather = (
+    supabase.table("weather_readings")
+    .select("*")
+    .order("fetched_at", desc=True)
+    .limit(100)
+    .execute()
+    .data
+)
     changes = supabase.table("change_log").select("*").order("timestamp", desc=True).limit(100).execute().data
     return line_items, creatives, cities_data, weather, changes
 
@@ -42,10 +50,17 @@ creative_titles = {c["id"]: c["title"] for c in creatives}
 CITIES = [c["name"] for c in cities_data]
 
 latest_weather = {}
-for w in weather_readings:
-    if w["city"] not in latest_weather:
-        latest_weather[w["city"]] = w
 
+sorted_weather = sorted(
+    weather_readings,
+    key=lambda x: x["fetched_at"],
+    reverse=True
+)
+
+for w in sorted_weather:
+    city = w["city"]
+    if city not in latest_weather:
+        latest_weather[city] = w
 # Fixed dummy KPIs (deterministic, won't change on scroll)
 DUMMY = {}
 for li in line_items:
