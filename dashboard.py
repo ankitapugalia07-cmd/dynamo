@@ -380,8 +380,8 @@ if action == "Activate" and not is_active:
     }).execute()
 
     st.rerun()
-                if action == "Activate" and not is_active:
-                    toggle(item, "active"); st.rerun()
+    if action == "Activate" and not is_active:
+        toggle(item, "active"); st.rerun()
             st.divider()
         if shown == 0:
             st.caption("No line items match the filter.")
