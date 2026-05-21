@@ -336,9 +336,31 @@ for city in CITIES:
     key=f"act_{item['id']}",
     label_visibility="collapsed",
 )
-                if "Pause" in action and is_active:
+    if "Pause" in action and is_active:
+        pause_reason = action.replace("Pause ", "")
 
-    pause_reason = action.replace("Pause ", "")
+    supabase.table("line_items").update({
+        "state": "paused",
+        "state_reason": f"Manual pause {pause_reason} by CMO",
+        "last_changed_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("id", item["id"]).execute()
+
+    supabase.table("change_log").insert({
+        "line_item_id": item["id"],
+        "previous_state": item["state"],
+        "new_state": "paused",
+        "trigger_source": "manual_override",
+        "weather_snapshot": None,
+        "rule_applied": None,
+        "reason": f"Manual pause {pause_reason} by CMO",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }).execute()
+
+    st.rerun()
+
+if action == "Activate" and not is_active:
+    toggle(item, "active")
+    st.rerun()
 
     supabase.table("line_items").update({
         "state": "paused",
