@@ -21,7 +21,13 @@ st.set_page_config(page_title="DynaMo — CoolSip", page_icon="🌤️", layout=
 
 st.markdown("""
 <style>
-    .block-container { padding-top: 2rem; }
+    .block-container {
+        padding-top: 2rem;
+    }
+
+    iframe {
+        pointer-events: none;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -130,7 +136,7 @@ c3.metric("KPI Events (demo)", fmt_num(total_kpi), "+7.2%")
 c4.metric("Active Line Items", f"{active_count} / {len(line_items)}")
 
 # Weather API status card — per-city tick/cross
-st.markdown("**🌐 Weather API Status**")
+st.markdown("**🌤️ Live Market Conditions**")
 ws = st.columns(len(CITIES))
 for col, city in zip(ws, CITIES):
     age = freshness_age(city)
@@ -153,7 +159,11 @@ trend_df = pd.DataFrame({
     "KPI Events": [8, 12, 10, 15, 14, 11, 13],
 }).set_index("Day")
 st.markdown("**KPI Trend (Last 7 Days)** — demo data")
-st.line_chart(trend_df, height=220)
+st.line_chart(
+    trend_df,
+    height=220,
+    use_container_width=True
+)
 
 st.divider()
 
@@ -163,17 +173,6 @@ st.divider()
 
 st.subheader("Campaigns by City")
 
-tb1, tb2, tb3, tb4 = st.columns([1, 1.3, 1, 1])
-with tb1:
-    if st.button("⏸ Pause All"):
-        st.session_state["confirm_pause_all"] = True
-with tb2:
-    if st.button("▶ Activate All (by weather)"):
-        st.session_state["confirm_activate_all"] = True
-with tb3:
-    expand_all = st.toggle("Expand all")
-with tb4:
-    state_filter = st.selectbox("Show", ["All", "active", "paused"], label_visibility="collapsed")
 
 # Pause All confirmation
 if st.session_state.get("confirm_pause_all"):
@@ -242,18 +241,57 @@ for city in CITIES:
     cimp = sum(DUMMY[li["id"]]["impressions"] for li in city_items)
     cclk = sum(DUMMY[li["id"]]["clicks"] for li in city_items)
 
-    cr = st.columns([0.5, 1.5, 1.8, 1.8, 1, 1])
-    cr[0].write(dot)
-    cr[1].write(f"**{city}** ({len(city_items)})")
-    cr[2].write(fresh)
-    cr[3].write(running)
-    cr[4].write(fmt_num(cimp))
-    cr[5].write(fmt_num(cclk))
+    cr = st.columns([0.4, 1.4, 1.3, 1.8, 0.8, 0.8])
 
+cr[0].markdown(f"<div style='padding-top:4px'>{dot}</div>", unsafe_allow_html=True)
+
+cr[1].markdown(
+    f"<div style='font-size:14px'><b>{city}</b> ({len(city_items)})</div>",
+    unsafe_allow_html=True
+)
+
+cr[2].markdown(
+    f"<div style='font-size:13px'>{fresh}</div>",
+    unsafe_allow_html=True
+)
+
+cr[3].markdown(
+    f"<div style='font-size:13px'>{running}</div>",
+    unsafe_allow_html=True
+)
+
+cr[4].markdown(
+    f"<div style='font-size:13px'>{fmt_num(cimp)}</div>",
+    unsafe_allow_html=True
+)
+
+cr[5].markdown(
+    f"<div style='font-size:13px'>{fmt_num(cclk)}</div>",
+    unsafe_allow_html=True
+)
 st.divider()
 
 # ---- Expanded per city: line item table with per-row action dropdown ----
 st.markdown("**Line Item Details**")
+tb1, tb2, tb3, tb4 = st.columns([1, 1.3, 1, 1])
+
+with tb1:
+    if st.button("⏸ Pause All"):
+        st.session_state["confirm_pause_all"] = True
+
+with tb2:
+    if st.button("▶ Activate All (by weather)"):
+        st.session_state["confirm_activate_all"] = True
+
+with tb3:
+    expand_all = st.toggle("Expand all")
+
+with tb4:
+    state_filter = st.selectbox(
+        "Show",
+        ["All", "active", "paused"],
+        label_visibility="collapsed"
+    )
 
 for city in CITIES:
     city_items = [li for li in line_items if li["city"] == city]
@@ -287,11 +325,39 @@ for city in CITIES:
             row[4].caption(f"Impr {fmt_num(k['impressions'])}  \nClk {fmt_num(k['clicks'])} · KPI {fmt_num(k['kpi'])}")
             with row[5]:
                 action = st.selectbox(
-                    "act", ["—", "Pause", "Activate"],
-                    key=f"act_{item['id']}", label_visibility="collapsed",
-                )
-                if action == "Pause" and is_active:
-                    toggle(item, "paused"); st.rerun()
+    "act",
+    [
+        "—",
+        "Pause (1 hr)",
+        "Pause (3 hrs)",
+        "Pause (Until Resume)",
+        "Activate"
+    ],
+    key=f"act_{item['id']}",
+    label_visibility="collapsed",
+)
+                if "Pause" in action and is_active:
+
+    pause_reason = action.replace("Pause ", "")
+
+    supabase.table("line_items").update({
+        "state": "paused",
+        "state_reason": f"Manual pause {pause_reason} by CMO",
+        "last_changed_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("id", item["id"]).execute()
+
+    supabase.table("change_log").insert({
+        "line_item_id": item["id"],
+        "previous_state": item["state"],
+        "new_state": "paused",
+        "trigger_source": "manual_override",
+        "weather_snapshot": None,
+        "rule_applied": None,
+        "reason": f"Manual pause {pause_reason} by CMO",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }).execute()
+
+    st.rerun()
                 if action == "Activate" and not is_active:
                     toggle(item, "active"); st.rerun()
             st.divider()

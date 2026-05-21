@@ -72,10 +72,14 @@ def fetch_weather(city_name, lat, lon):
         return None
 
 
+# city name -> id (loaded once)
+CITY_IDS = {c["name"]: c["id"] for c in supabase.table("cities").select("*").execute().data}
+
 def save_weather_reading(city, weather):
     """Save a weather reading to the database."""
     supabase.table("weather_readings").insert({
         "city": city,
+        "city_id": CITY_IDS.get(city),
         "temperature": weather["temperature"],
         "precipitation": weather["precipitation"],
         "fetched_at": datetime.now(timezone.utc).isoformat(),
