@@ -1,0 +1,6 @@
+# Minimal Supabase project config for Edge Functions.
+# Link project: supabase link --project-ref <your-project-ref>
+
+[functions.fetch-weather]
+# Cron invokes without a user JWT; protect with service role on manual calls only.
+verify_jwt = false

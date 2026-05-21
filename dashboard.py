@@ -173,52 +173,6 @@ st.divider()
 
 st.subheader("Campaigns by City")
 
-
-# Pause All confirmation
-if st.session_state.get("confirm_pause_all"):
-    active_items = [li for li in line_items if li["state"] == "active"]
-    st.warning(f"⚠️ This pauses **{len(active_items)} active line items** across all cities. Continue?")
-    cc1, cc2 = st.columns(2)
-    if cc1.button("✅ Yes, pause all"):
-        for item in active_items:
-            supabase.table("line_items").update({"state": "paused", "state_reason": "Bulk pause-all by CMO", "last_changed_at": datetime.now(timezone.utc).isoformat()}).eq("id", item["id"]).execute()
-            supabase.table("change_log").insert({"line_item_id": item["id"], "previous_state": "active", "new_state": "paused", "trigger_source": "manual_override", "weather_snapshot": None, "rule_applied": None, "reason": "Bulk pause-all by CMO", "timestamp": datetime.now(timezone.utc).isoformat()}).execute()
-        st.session_state["confirm_pause_all"] = False
-        st.rerun()
-    if cc2.button("Cancel", key="cpa"):
-        st.session_state["confirm_pause_all"] = False
-        st.rerun()
-
-# Activate All (re-run weather rules)
-if st.session_state.get("confirm_activate_all"):
-    st.warning("⚠️ Re-applies current weather rules per city — activates the correct creative for each city's weather. Does NOT activate every line item. Continue?")
-    ac1, ac2 = st.columns(2)
-    if ac1.button("✅ Yes, re-apply rules"):
-        rules = sorted(supabase.table("rules").select("*").execute().data, key=lambda r: r["priority"])
-        for city in CITIES:
-            w = latest_weather.get(city)
-            if not w: continue
-            winner = None
-            for rule in rules:
-                p = rule["parameter"]
-                if p == "default":
-                    winner = rule; break
-                val = w["temperature"] if p == "temperature" else w["precipitation"]
-                if (rule["operator"] == ">=" and val >= rule["value"]) or (rule["operator"] == ">" and val > rule["value"]):
-                    winner = rule; break
-            if not winner: continue
-            for item in [li for li in line_items if li["city"] == city]:
-                ns = "active" if item["creative_id"] == winner["creative_id"] else "paused"
-                if item["state"] != ns:
-                    reason = f"Re-applied rule '{winner['name']}' (temp={w['temperature']}°C)"
-                    supabase.table("line_items").update({"state": ns, "state_reason": reason, "last_changed_at": datetime.now(timezone.utc).isoformat()}).eq("id", item["id"]).execute()
-                    supabase.table("change_log").insert({"line_item_id": item["id"], "previous_state": item["state"], "new_state": ns, "trigger_source": "manual_override", "weather_snapshot": w, "rule_applied": winner["name"], "reason": reason, "timestamp": datetime.now(timezone.utc).isoformat()}).execute()
-        st.session_state["confirm_activate_all"] = False
-        st.rerun()
-    if ac2.button("Cancel", key="caa"):
-        st.session_state["confirm_activate_all"] = False
-        st.rerun()
-
 def toggle(item, ns):
     supabase.table("line_items").update({"state": ns, "state_reason": f"Manual {ns} by CMO", "last_changed_at": datetime.now(timezone.utc).isoformat()}).eq("id", item["id"]).execute()
     supabase.table("change_log").insert({"line_item_id": item["id"], "previous_state": item["state"], "new_state": ns, "trigger_source": "manual_override", "weather_snapshot": None, "rule_applied": None, "reason": f"Manual {ns} by CMO", "timestamp": datetime.now(timezone.utc).isoformat()}).execute()
@@ -276,11 +230,13 @@ st.markdown("**Line Item Details**")
 tb1, tb2, tb3, tb4 = st.columns([1, 1.3, 1, 1])
 
 with tb1:
-    if st.button("⏸ Pause All"):
+    if st.button("⏸ Pause All", key="btn_pause_all"):
+        st.session_state["confirm_activate_all"] = False
         st.session_state["confirm_pause_all"] = True
 
 with tb2:
-    if st.button("▶ Activate All (by weather)"):
+    if st.button("▶ Activate All (by weather)", key="btn_activate_all"):
+        st.session_state["confirm_pause_all"] = False
         st.session_state["confirm_activate_all"] = True
 
 with tb3:
@@ -292,6 +248,50 @@ with tb4:
         ["All", "active", "paused"],
         label_visibility="collapsed"
     )
+
+# Bulk actions — confirmation must render here (after buttons), not under "Campaigns by City"
+if st.session_state.get("confirm_pause_all"):
+    active_items = [li for li in line_items if li["state"] == "active"]
+    st.warning(f"⚠️ This pauses **{len(active_items)} active line items** across all cities. Continue?")
+    cc1, cc2 = st.columns(2)
+    if cc1.button("✅ Yes, pause all", key="confirm_pause_yes"):
+        for item in active_items:
+            supabase.table("line_items").update({"state": "paused", "state_reason": "Bulk pause-all by CMO", "last_changed_at": datetime.now(timezone.utc).isoformat()}).eq("id", item["id"]).execute()
+            supabase.table("change_log").insert({"line_item_id": item["id"], "previous_state": "active", "new_state": "paused", "trigger_source": "manual_override", "weather_snapshot": None, "rule_applied": None, "reason": "Bulk pause-all by CMO", "timestamp": datetime.now(timezone.utc).isoformat()}).execute()
+        st.session_state["confirm_pause_all"] = False
+        st.rerun()
+    if cc2.button("Cancel", key="confirm_pause_cancel"):
+        st.session_state["confirm_pause_all"] = False
+        st.rerun()
+
+if st.session_state.get("confirm_activate_all"):
+    st.warning("⚠️ Re-applies current weather rules per city — activates the correct creative for each city's weather. Does NOT activate every line item. Continue?")
+    ac1, ac2 = st.columns(2)
+    if ac1.button("✅ Yes, re-apply rules", key="confirm_activate_yes"):
+        rules = sorted(supabase.table("rules").select("*").execute().data, key=lambda r: r["priority"])
+        for city in CITIES:
+            w = latest_weather.get(city)
+            if not w: continue
+            winner = None
+            for rule in rules:
+                p = rule["parameter"]
+                if p == "default":
+                    winner = rule; break
+                val = w["temperature"] if p == "temperature" else w["precipitation"]
+                if (rule["operator"] == ">=" and val >= rule["value"]) or (rule["operator"] == ">" and val > rule["value"]):
+                    winner = rule; break
+            if not winner: continue
+            for item in [li for li in line_items if li["city"] == city]:
+                ns = "active" if item["creative_id"] == winner["creative_id"] else "paused"
+                if item["state"] != ns:
+                    reason = f"Re-applied rule '{winner['name']}' (temp={w['temperature']}°C)"
+                    supabase.table("line_items").update({"state": ns, "state_reason": reason, "last_changed_at": datetime.now(timezone.utc).isoformat()}).eq("id", item["id"]).execute()
+                    supabase.table("change_log").insert({"line_item_id": item["id"], "previous_state": item["state"], "new_state": ns, "trigger_source": "manual_override", "weather_snapshot": w, "rule_applied": winner["name"], "reason": reason, "timestamp": datetime.now(timezone.utc).isoformat()}).execute()
+        st.session_state["confirm_activate_all"] = False
+        st.rerun()
+    if ac2.button("Cancel", key="confirm_activate_cancel"):
+        st.session_state["confirm_activate_all"] = False
+        st.rerun()
 
 for city in CITIES:
     city_items = [li for li in line_items if li["city"] == city]
