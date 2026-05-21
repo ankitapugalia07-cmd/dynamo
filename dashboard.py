@@ -3,10 +3,8 @@ DynaMo Dashboard — Visibility layer for CoolSip's CMO
 """
 
 import os
-import time
 import streamlit as st
 import pandas as pd
-import requests
 from datetime import datetime, timezone, date
 from dotenv import load_dotenv
 from supabase import create_client
@@ -32,38 +30,6 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
-
-# ============================================================
-# WEATHER SYNC (edge function on load / manual refresh)
-# ============================================================
-
-WEATHER_FETCH_WAIT_SEC = 5
-
-def fetch_weather_from_edge():
-    """Invoke Supabase fetch-weather, then wait for DB to have new readings."""
-    base = (os.getenv("SUPABASE_URL") or "").rstrip("/")
-    if not base:
-        return
-    url = f"{base}/functions/v1/fetch-weather"
-    headers = {"Content-Type": "application/json"}
-    key = os.getenv("SUPABASE_KEY")
-    if key:
-        headers["Authorization"] = f"Bearer {key}"
-    requests.post(url, headers=headers, json={}, timeout=30)
-    time.sleep(WEATHER_FETCH_WAIT_SEC)
-
-def sync_weather_if_needed():
-    force = st.session_state.pop("force_weather_fetch", False)
-    if not force and st.session_state.get("weather_synced"):
-        return
-    with st.spinner(f"Updating live weather ({WEATHER_FETCH_WAIT_SEC}s)…"):
-        try:
-            fetch_weather_from_edge()
-        except Exception as e:
-            st.warning(f"Could not refresh weather from edge function: {e}")
-    st.session_state["weather_synced"] = True
-
-sync_weather_if_needed()
 
 # ============================================================
 # FETCH DATA
@@ -152,7 +118,6 @@ def freshness_dot(city):
 st.title("🌤️ DynaMo — CoolSip Summer Campaign")
 st.caption(f"Real-time campaign control • Last refreshed: {datetime.now().strftime('%I:%M:%S %p')}")
 if st.button("🔄 Refresh data"):
-    st.session_state["force_weather_fetch"] = True
     st.rerun()
 
 # ============================================================
