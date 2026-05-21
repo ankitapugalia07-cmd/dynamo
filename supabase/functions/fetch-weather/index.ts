@@ -9,7 +9,7 @@
  *   supabase functions deploy fetch-weather --no-verify-jwt
  *
  * Schedule (Dashboard → Edge Functions → fetch-weather → Schedules):
- *   */12 * * * *   (every 12 minutes, same as main.py SCHEDULER_INTERVAL)
+ *   every 12 minutes (cron: minute 0,12,24,36,48 — or use Supabase's schedule UI)
  *
  * Or invoke manually:
  *   curl -X POST "$SUPABASE_URL/functions/v1/fetch-weather" \
