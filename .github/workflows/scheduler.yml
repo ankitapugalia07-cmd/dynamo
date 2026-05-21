@@ -2,7 +2,7 @@ name: DynaMo Weather Scheduler
 
 on:
   schedule:
-    - cron: '*/12 * * * *'   # every 12 minutes
+    - cron: '*/13 * * * *'   # every 12 minutes
   workflow_dispatch:          # allows manual trigger from GitHub UI
 
 jobs:
