@@ -40,13 +40,13 @@ def load_data():
     creatives = supabase.table("creatives").select("*").execute().data
     cities_data = supabase.table("cities").select("*").execute().data
     weather = (
-    supabase.table("weather_readings")
-    .select("*")
-    .order("fetched_at", desc=True)
-    .limit(100)
-    .execute()
-    .data
-)
+        supabase.table("weather_readings")
+        .select("*")
+        .order("fetched_at", desc=True)
+        .limit(100)
+        .execute()
+        .data
+    )
     changes = supabase.table("change_log").select("*").order("timestamp", desc=True).limit(100).execute().data
     return line_items, creatives, cities_data, weather, changes
 
@@ -243,32 +243,32 @@ for city in CITIES:
 
     cr = st.columns([0.4, 1.4, 1.3, 1.8, 0.8, 0.8])
 
-cr[0].markdown(f"<div style='padding-top:4px'>{dot}</div>", unsafe_allow_html=True)
+    cr[0].markdown(f"<div style='padding-top:4px'>{dot}</div>", unsafe_allow_html=True)
 
-cr[1].markdown(
-    f"<div style='font-size:14px'><b>{city}</b> ({len(city_items)})</div>",
-    unsafe_allow_html=True
-)
+    cr[1].markdown(
+        f"<div style='font-size:14px'><b>{city}</b> ({len(city_items)})</div>",
+        unsafe_allow_html=True
+    )
 
-cr[2].markdown(
-    f"<div style='font-size:13px'>{fresh}</div>",
-    unsafe_allow_html=True
-)
+    cr[2].markdown(
+        f"<div style='font-size:13px'>{fresh}</div>",
+        unsafe_allow_html=True
+    )
 
-cr[3].markdown(
-    f"<div style='font-size:13px'>{running}</div>",
-    unsafe_allow_html=True
-)
+    cr[3].markdown(
+        f"<div style='font-size:13px'>{running}</div>",
+        unsafe_allow_html=True
+    )
 
-cr[4].markdown(
-    f"<div style='font-size:13px'>{fmt_num(cimp)}</div>",
-    unsafe_allow_html=True
-)
+    cr[4].markdown(
+        f"<div style='font-size:13px'>{fmt_num(cimp)}</div>",
+        unsafe_allow_html=True
+    )
 
-cr[5].markdown(
-    f"<div style='font-size:13px'>{fmt_num(cclk)}</div>",
-    unsafe_allow_html=True
-)
+    cr[5].markdown(
+        f"<div style='font-size:13px'>{fmt_num(cclk)}</div>",
+        unsafe_allow_html=True
+    )
 st.divider()
 
 # ---- Expanded per city: line item table with per-row action dropdown ----
@@ -325,64 +325,40 @@ for city in CITIES:
             row[4].caption(f"Impr {fmt_num(k['impressions'])}  \nClk {fmt_num(k['clicks'])} · KPI {fmt_num(k['kpi'])}")
             with row[5]:
                 action = st.selectbox(
-    "act",
-    [
-        "—",
-        "Pause (1 hr)",
-        "Pause (3 hrs)",
-        "Pause (Until Resume)",
-        "Activate"
-    ],
-    key=f"act_{item['id']}",
-    label_visibility="collapsed",
-)
-    if "Pause" in action and is_active:
-        pause_reason = action.replace("Pause ", "")
+                    "act",
+                    [
+                        "—",
+                        "Pause (1 hr)",
+                        "Pause (3 hrs)",
+                        "Pause (Until Resume)",
+                        "Activate"
+                    ],
+                    key=f"act_{item['id']}",
+                    label_visibility="collapsed",
+                )
+                if "Pause" in action and is_active:
+                    pause_reason = action.replace("Pause ", "")
+                    supabase.table("line_items").update({
+                        "state": "paused",
+                        "state_reason": f"Manual pause {pause_reason} by CMO",
+                        "last_changed_at": datetime.now(timezone.utc).isoformat(),
+                    }).eq("id", item["id"]).execute()
+                    supabase.table("change_log").insert({
+                        "line_item_id": item["id"],
+                        "previous_state": item["state"],
+                        "new_state": "paused",
+                        "trigger_source": "manual_override",
+                        "weather_snapshot": None,
+                        "rule_applied": None,
+                        "reason": f"Manual pause {pause_reason} by CMO",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    }).execute()
+                    st.rerun()
+                if action == "Activate" and not is_active:
+                    toggle(item, "active")
+                    st.rerun()
 
-    supabase.table("line_items").update({
-        "state": "paused",
-        "state_reason": f"Manual pause {pause_reason} by CMO",
-        "last_changed_at": datetime.now(timezone.utc).isoformat(),
-    }).eq("id", item["id"]).execute()
-
-    supabase.table("change_log").insert({
-        "line_item_id": item["id"],
-        "previous_state": item["state"],
-        "new_state": "paused",
-        "trigger_source": "manual_override",
-        "weather_snapshot": None,
-        "rule_applied": None,
-        "reason": f"Manual pause {pause_reason} by CMO",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    }).execute()
-
-    st.rerun()
-
-if action == "Activate" and not is_active:
-    toggle(item, "active")
-    st.rerun()
-
-    supabase.table("line_items").update({
-        "state": "paused",
-        "state_reason": f"Manual pause {pause_reason} by CMO",
-        "last_changed_at": datetime.now(timezone.utc).isoformat(),
-    }).eq("id", item["id"]).execute()
-
-    supabase.table("change_log").insert({
-        "line_item_id": item["id"],
-        "previous_state": item["state"],
-        "new_state": "paused",
-        "trigger_source": "manual_override",
-        "weather_snapshot": None,
-        "rule_applied": None,
-        "reason": f"Manual pause {pause_reason} by CMO",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    }).execute()
-
-    st.rerun()
-    if action == "Activate" and not is_active:
-        toggle(item, "active"); st.rerun()
-            st.divider()
+        st.divider()
         if shown == 0:
             st.caption("No line items match the filter.")
 
