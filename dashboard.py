@@ -10,6 +10,8 @@ from dotenv import load_dotenv
 from supabase import create_client
 from streamlit_autorefresh import st_autorefresh
 
+from manual_override import is_manual_weather_lock
+
 # ============================================================
 # SETUP
 # ============================================================
@@ -282,6 +284,8 @@ if st.session_state.get("confirm_activate_all"):
                     winner = rule; break
             if not winner: continue
             for item in [li for li in line_items if li["city"] == city]:
+                if is_manual_weather_lock(item):
+                    continue
                 ns = "active" if item["creative_id"] == winner["creative_id"] else "paused"
                 if item["state"] != ns:
                     reason = f"Re-applied rule '{winner['name']}' (temp={w['temperature']}°C)"
@@ -314,7 +318,7 @@ for city in CITIES:
             shown += 1
             k = DUMMY[item["id"]]
             is_active = item["state"] == "active"
-            is_manual = "manual" in (item.get("state_reason") or "").lower() or "emergency" in (item.get("state_reason") or "").lower()
+            is_manual = is_manual_weather_lock(item)
             status_txt = ("🟢 ACTIVE" if is_active else "🟡 PAUSED") + (" 🔒" if is_manual else "")
 
             row = st.columns([1.3, 1.8, 3, 1.2, 1.5, 1.3])

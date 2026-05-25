@@ -10,6 +10,8 @@ from dotenv import load_dotenv
 from supabase import create_client
 import requests
 
+from manual_override import is_manual_weather_lock
+
 # ============================================================
 # CONFIGURATION
 # ============================================================
@@ -164,6 +166,10 @@ def run_cycle():
         city_items = [li for li in line_items if li["city"] == city]
         
         for item in city_items:
+            if is_manual_weather_lock(item):
+                print(f"    ⏭️  Line item {item['id']}: skipped (manual override active)")
+                continue
+
             should_be_active = (item["creative_id"] == active_creative_id)
             new_state = "active" if should_be_active else "paused"
             
